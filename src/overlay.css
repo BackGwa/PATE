@@ -1,0 +1,101 @@
+.capsule {
+  position: fixed;
+  border-radius: 999px;
+}
+
+.value {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+#range {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#range-outline {
+  fill: rgba(255, 255, 255, 0.05);
+  stroke: rgba(0, 0, 0, 0.28);
+  stroke-width: 4;
+}
+
+#range-edge {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 1.5;
+}
+
+#range-handle {
+  fill: var(--accent);
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 1;
+  cursor: grab;
+}
+
+#range-label {
+  padding: 6px 12px;
+  pointer-events: none;
+}
+
+.slider-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 240px;
+  height: 40px;
+  padding: 0 16px 0 14px;
+}
+
+.slider-panel .value {
+  min-width: 48px;
+  text-align: right;
+}
+
+.capsule-slider {
+  --fill: 50%;
+  flex: 1;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.capsule-slider:focus {
+  outline: none;
+}
+
+.capsule-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--fill), var(--track) var(--fill));
+}
+
+.capsule-slider::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  appearance: none;
+  -webkit-appearance: none;
+  transition: transform 120ms ease;
+}
+
+.capsule-slider:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+.capsule-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.35),
+    0 0 0 4px rgba(255, 255, 255, 0.28);
+}

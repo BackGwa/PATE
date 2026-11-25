@@ -1,0 +1,84 @@
+.panel {
+  position: fixed;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: #1f1f23;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+  color: var(--text);
+}
+
+#menu {
+  width: 200px;
+}
+
+.submenu {
+  width: 148px;
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.submenu.open {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  text-align: left;
+  cursor: default;
+}
+
+.item:hover,
+.item:focus-visible,
+.item[aria-expanded="true"] {
+  outline: none;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.item:disabled {
+  color: var(--text-muted);
+  opacity: 0.45;
+  background: transparent;
+}
+
+.chevron,
+.check {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.check {
+  stroke: var(--text);
+}
+
+.separator {
+  height: 1px;
+  margin: 4px 8px;
+  background: rgba(255, 255, 255, 0.07);
+}

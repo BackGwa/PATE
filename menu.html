@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PATE</title>
+    <script type="module" src="/src/context-menu.ts"></script>
+  </head>
+  <body>
+    <div id="menu" class="panel reveal" role="menu">
+      <button class="item" role="menuitem" data-action="resize"></button>
+      <button class="item" role="menuitem" data-action="lookRange"></button>
+      <button class="item" role="menuitem" data-action="changeSheet"></button>
+      <div class="separator" role="separator"></div>
+      <button id="language-item" class="item" role="menuitem" aria-haspopup="menu" aria-expanded="false">
+        <span id="language-label"></span>
+        <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
+      </button>
+      <div class="separator" role="separator"></div>
+      <button class="item" role="menuitem" data-action="quit"></button>
+    </div>
+    <div id="languages" class="panel submenu" role="menu" hidden></div>
+  </body>
+</html>
