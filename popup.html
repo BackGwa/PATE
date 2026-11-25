@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PATE</title>
+    <script type="module" src="/src/popup.ts"></script>
+  </head>
+  <body>
+    <div id="stage"></div>
+    <dl id="debug-panel" class="surface reveal" hidden></dl>
+    <template id="menu-template">
+      <div id="menu" class="panel reveal" role="menu">
+        <button class="item" role="menuitem" data-action="resize"></button>
+        <button class="item" role="menuitem" data-action="lookRange"></button>
+        <button class="item" role="menuitem" data-action="changeSheet"></button>
+        <div class="separator" role="separator"></div>
+        <button id="language-item" class="item" role="menuitem" aria-haspopup="menu" aria-expanded="false">
+          <span id="language-label"></span>
+          <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
+        </button>
+        <button id="autonomy-item" class="item" role="menuitem" aria-haspopup="menu" aria-expanded="false">
+          <span id="autonomy-label"></span>
+          <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
+        </button>
+        <button id="autostart-item" class="item" role="menuitemcheckbox" aria-checked="false">
+          <span id="autostart-label"></span>
+        </button>
+        <button id="debug-item" class="item" role="menuitemcheckbox" aria-checked="false">
+          <span id="debug-label"></span>
+        </button>
+        <div class="separator" role="separator"></div>
+        <button class="item" role="menuitem" data-action="quit"></button>
+      </div>
+      <div id="languages" class="panel submenu" role="menu" hidden></div>
+      <div id="autonomy-levels" class="panel submenu" role="menu" hidden></div>
+    </template>
+    <template id="overlay-template">
+      <svg id="range" class="reveal" hidden>
+        <circle id="range-outline" />
+        <circle id="range-edge" />
+        <circle id="range-handle" r="7" />
+      </svg>
+      <div id="range-label" class="surface capsule reveal" hidden>
+        <span id="range-value" class="value"></span>
+      </div>
+      <div id="size-panel" class="surface capsule slider-panel reveal" hidden>
+        <input id="size-slider" class="capsule-slider" type="range" step="1" />
+        <output id="size-value" class="value" for="size-slider"></output>
+      </div>
+      <div id="radius-panel" class="surface capsule slider-panel reveal" hidden>
+        <input id="radius-slider" class="capsule-slider" type="range" step="1" />
+        <output id="radius-value" class="value" for="radius-slider"></output>
+      </div>
+    </template>
+  </body>
+</html>

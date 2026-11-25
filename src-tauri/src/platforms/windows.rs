@@ -4,7 +4,7 @@ use std::mem::size_of;
 use windows::Win32::Foundation::{HWND, LPARAM, RECT};
 use windows::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS, DwmGetWindowAttribute};
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GWL_EXSTYLE, GetClassNameW, GetWindowLongW, GetWindowTextLengthW,
+    EnumWindows, GWL_EXSTYLE, GetClassNameW, GetWindowLongW, GetWindowTextLengthW, GetWindowTextW,
     GetWindowThreadProcessId, IsIconic, IsWindowVisible, WS_EX_TOOLWINDOW,
 };
 use windows::core::BOOL;
@@ -22,6 +22,13 @@ pub fn list_platforms() -> Vec<PlatformRect> {
         );
     }
     platforms
+}
+
+pub fn window_title(id: u64) -> Option<String> {
+    let hwnd = HWND(id as usize as *mut c_void);
+    let mut buffer = vec![0u16; unsafe { GetWindowTextLengthW(hwnd) }.max(0) as usize + 1];
+    let length = unsafe { GetWindowTextW(hwnd, &mut buffer) };
+    (length > 0).then(|| String::from_utf16_lossy(&buffer[..length as usize]))
 }
 
 unsafe extern "system" fn collect_platform(hwnd: HWND, lparam: LPARAM) -> BOOL {

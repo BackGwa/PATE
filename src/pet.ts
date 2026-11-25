@@ -9,6 +9,8 @@ import {
   MORPH_MS,
   RUN_LEFT,
   RUN_RIGHT,
+  WALK_LEFT,
+  WALK_RIGHT,
   frameAt,
   idleCycle,
   squashAt,
@@ -23,6 +25,7 @@ export type MotionState =
   | { state: "dragging"; facing: Facing }
   | { state: "falling" }
   | { state: "flying"; facing: Facing }
+  | { state: "walking"; facing: Facing }
   | { state: "standing"; x: number; y: number };
 
 type Gaze = number | "idle";
@@ -47,6 +50,7 @@ export class PetView {
   private readonly morph: FlowMorph;
   private motion: MotionState | null = null;
   private landing = false;
+  private action: Clip | null = null;
   private look: number | null = null;
   private gaze: Gaze = "idle";
   private gazeSegment: GazeSegment | null = null;
@@ -70,6 +74,22 @@ export class PetView {
     return this.motion?.state === "standing";
   }
 
+  get isWalking(): boolean {
+    return this.motion?.state === "walking";
+  }
+
+  get isActing(): boolean {
+    return this.action !== null;
+  }
+
+  playAction(clip: Clip) {
+    this.action = clip;
+  }
+
+  stopAction() {
+    this.action = null;
+  }
+
   setSheet(sheet: Sheet) {
     this.sheet = sheet;
     this.look = null;
@@ -81,7 +101,10 @@ export class PetView {
 
   setMotion(motion: MotionState) {
     const wasAirborne = isAirborne(this.motion);
-    this.landing = motion.state === "standing" && wasAirborne;
+    this.landing = isGrounded(motion) && wasAirborne;
+    if (motion.state !== "standing") {
+      this.action = null;
+    }
     if (this.landing || (isAirborne(motion) && !wasAirborne)) {
       this.squashStartedAt = performance.now();
     }
@@ -164,6 +187,16 @@ export class PetView {
       }
       this.landing = false;
     }
+    if (this.look !== null) {
+      this.action = null;
+    } else if (this.action !== null) {
+      const frame = this.play(this.action, now);
+      if (!frame.finished) {
+        this.restartIdle();
+        return still(frame.sprite);
+      }
+      this.action = null;
+    }
     const idlePose = this.idlePose(now);
     this.advanceGaze(this.look ?? "idle", now);
     const segment = this.gazeSegment;
@@ -242,6 +275,8 @@ export class PetView {
       case "dragging":
       case "flying":
         return this.motion.facing === "right" ? RUN_RIGHT : RUN_LEFT;
+      case "walking":
+        return this.motion.facing === "right" ? WALK_RIGHT : WALK_LEFT;
       case "falling":
         return FALL;
       default:
@@ -264,6 +299,10 @@ function still(sprite: number): Pose {
 
 function smooth(progress: number): number {
   return progress * progress * (3 - 2 * progress);
+}
+
+function isGrounded(motion: MotionState): boolean {
+  return motion.state === "standing" || motion.state === "walking";
 }
 
 function isAirborne(motion: MotionState | null): boolean {

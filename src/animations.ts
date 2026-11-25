@@ -7,10 +7,13 @@ export type Clip = {
 
 const sprite = (row: number, column: number) => row * COLUMNS + column;
 
-const runRow = (row: number): Clip => ({
-  frames: Array.from({ length: 8 }, (_, column) => ({ sprite: sprite(row, column), ms: 120 })),
-  loop: true,
-});
+const rowFrames = (row: number, count: number, ms: number) =>
+  Array.from({ length: count }, (_, column) => ({ sprite: sprite(row, column), ms }));
+
+const runRow = (row: number, ms: number): Clip => ({ frames: rowFrames(row, 8, ms), loop: true });
+
+const ACTION_FRAME_MS = 150;
+const WALK_FRAME_MS = 180;
 
 const EYES_OPEN = sprite(0, 0);
 const EYES_HALF = sprite(0, 1);
@@ -34,8 +37,21 @@ export function idleCycle(): Clip {
   return { frames, loop: false };
 }
 
-export const RUN_RIGHT = runRow(1);
-export const RUN_LEFT = runRow(2);
+export const RUN_RIGHT = runRow(1, 120);
+export const RUN_LEFT = runRow(2, 120);
+export const WALK_RIGHT = runRow(1, WALK_FRAME_MS);
+export const WALK_LEFT = runRow(2, WALK_FRAME_MS);
+
+export type ActionName = "failed";
+
+const ACTION_ROWS: Record<ActionName, { row: number; count: number }> = {
+  failed: { row: 5, count: 8 },
+};
+
+export function actionClip(name: ActionName): Clip {
+  const { row, count } = ACTION_ROWS[name];
+  return { frames: rowFrames(row, count, ACTION_FRAME_MS), loop: false };
+}
 
 export const FALL: Clip = {
   frames: [

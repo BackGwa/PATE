@@ -1,3 +1,5 @@
+import { AutonomyLevel } from "./autonomy-level";
+
 export type Language = "ko" | "en" | "ja";
 
 export const LANGUAGES: { code: Language; name: string }[] = [
@@ -11,6 +13,10 @@ export type Texts = {
   lookRange: string;
   changeSheet: string;
   language: string;
+  autonomy: string;
+  autonomyLevels: Record<AutonomyLevel, string>;
+  launchAtStartup: string;
+  debug: string;
   quit: string;
   sheetFilter: string;
   size: string;
@@ -25,6 +31,10 @@ const TEXTS: Record<Language, Texts> = {
     lookRange: "시선 범위 조절",
     changeSheet: "시트 이미지 변경…",
     language: "언어",
+    autonomy: "자율 행동",
+    autonomyLevels: { off: "끄기", sometimes: "가끔", often: "자주" },
+    launchAtStartup: "컴퓨터 시작 시 실행",
+    debug: "디버그 정보",
     quit: "종료",
     sheetFilter: "스프라이트 시트",
     size: "크기",
@@ -38,6 +48,10 @@ const TEXTS: Record<Language, Texts> = {
     lookRange: "Adjust Gaze Range",
     changeSheet: "Change Sheet Image…",
     language: "Language",
+    autonomy: "Autonomy",
+    autonomyLevels: { off: "Off", sometimes: "Sometimes", often: "Often" },
+    launchAtStartup: "Launch at Startup",
+    debug: "Debug Info",
     quit: "Quit",
     sheetFilter: "Sprite sheet",
     size: "Size",
@@ -51,6 +65,10 @@ const TEXTS: Record<Language, Texts> = {
     lookRange: "視線範囲の調整",
     changeSheet: "シート画像を変更…",
     language: "言語",
+    autonomy: "自律行動",
+    autonomyLevels: { off: "オフ", sometimes: "ときどき", often: "よく" },
+    launchAtStartup: "PC起動時に実行",
+    debug: "デバッグ情報",
     quit: "終了",
     sheetFilter: "スプライトシート",
     size: "サイズ",

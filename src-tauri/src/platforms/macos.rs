@@ -4,7 +4,8 @@ use core_foundation::number::CFNumber;
 use core_foundation::string::{CFString, CFStringRef};
 use core_graphics::window::{
     copy_window_info, kCGNullWindowID, kCGWindowBounds, kCGWindowLayer,
-    kCGWindowListExcludeDesktopElements, kCGWindowListOptionOnScreenOnly, kCGWindowNumber,
+    kCGWindowListExcludeDesktopElements, kCGWindowListOptionIncludingWindow,
+    kCGWindowListOptionOnScreenOnly, kCGWindowName, kCGWindowNumber, kCGWindowOwnerName,
     kCGWindowOwnerPID,
 };
 
@@ -27,6 +28,20 @@ pub fn list_platforms(points_to_physical: f64) -> Vec<PlatformRect> {
             platform_of(&info, own_process_id, points_to_physical)
         })
         .collect()
+}
+
+pub fn window_title(id: u64) -> Option<String> {
+    let windows = copy_window_info(kCGWindowListOptionIncludingWindow, id as u32)?;
+    let item = windows.iter().next()?;
+    let info: WindowInfo = unsafe { CFDictionary::wrap_under_get_rule(*item as _) };
+    text(&info, unsafe { kCGWindowName })
+        .filter(|name| !name.is_empty())
+        .or_else(|| text(&info, unsafe { kCGWindowOwnerName }))
+}
+
+fn text(info: &WindowInfo, key: CFStringRef) -> Option<String> {
+    let key = unsafe { CFString::wrap_under_get_rule(key) };
+    Some(info.find(&key)?.downcast::<CFString>()?.to_string())
 }
 
 fn platform_of(info: &WindowInfo, own_process_id: f64, points_to_physical: f64) -> Option<PlatformRect> {

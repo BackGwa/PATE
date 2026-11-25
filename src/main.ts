@@ -1,21 +1,22 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { message, open } from "@tauri-apps/plugin-dialog";
+import { Autonomy } from "./autonomy";
 import { Language, systemLanguage, texts } from "./i18n";
-import { PointerOffset, lookDirection } from "./look";
+import { PointerOffset, headDistance, lookDirection } from "./look";
 import { openContextMenu } from "./menu";
 import { MENU_ACTION_EVENT, MenuAction } from "./menu-protocol";
 import {
   OVERLAY_END_EVENT,
+  OVERLAY_OPEN_EVENT,
   OVERLAY_PREVIEW_EVENT,
-  OVERLAY_WINDOW,
   OverlayEnd,
   OverlayMode,
+  OverlayParams,
   OverlayPreview,
-  encodeOverlayParams,
 } from "./overlay-protocol";
+import { DEBUG_TOGGLE_EVENT, DebugToggle, POPUP_WINDOW, VIEW_DEBUG_EVENT, ViewDebug } from "./popup-protocol";
 import { MotionState, PetView } from "./pet";
 import { SettingsStore } from "./settings";
 import { Sheet, SheetSizeError, loadDefaultSheet, loadSheetFile } from "./sheet";
@@ -31,8 +32,10 @@ let language: Language = settings.values.language ?? systemLanguage();
 let sheet = await loadStartupSheet();
 let lookRadius = settings.values.lookRadius;
 let activeMode: { mode: OverlayMode; initialValue: number; value: number } | null = null;
+let debugEnabled = false;
 
 const view = new PetView(canvas, sheet);
+const autonomy = new Autonomy(view, settings.values.autonomy, () => activeMode === null);
 
 function sheetErrorReason(error: unknown): string {
   return error instanceof SheetSizeError
@@ -88,29 +91,25 @@ async function openOverlay(mode: OverlayMode) {
   const initialValue = mode === "size" ? settings.values.scale : lookRadius;
   activeMode = { mode, initialValue, value: initialValue };
   view.setLook(null);
-  const query = encodeOverlayParams({
+  const params: OverlayParams = {
     mode,
     language,
+    areaX: monitor.position.x / scaleFactor,
+    areaY: monitor.position.y / scaleFactor,
+    areaWidth: monitor.size.width / scaleFactor,
+    areaHeight: monitor.size.height / scaleFactor,
     petCenterX: (position.x + size.width / 2 - monitor.position.x) / scaleFactor,
     petBottom: (position.y + size.height - monitor.position.y) / scaleFactor,
     scale: settings.values.scale,
     radius: lookRadius,
-  });
-  new WebviewWindow(OVERLAY_WINDOW, {
-    url: `overlay.html?${query}`,
-    x: monitor.position.x / scaleFactor,
-    y: monitor.position.y / scaleFactor,
-    width: monitor.size.width / scaleFactor,
-    height: monitor.size.height / scaleFactor,
-    transparent: true,
-    decorations: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
-    shadow: false,
-    visible: false,
-    focus: false,
-  });
+  };
+  await emitTo(POPUP_WINDOW, OVERLAY_OPEN_EVENT, params);
+}
+
+async function toggleDebug() {
+  debugEnabled = !debugEnabled;
+  const toggle: DebugToggle = { enabled: debugEnabled, language };
+  await emitTo(POPUP_WINDOW, DEBUG_TOGGLE_EVENT, toggle);
 }
 
 async function previewMode(value: number) {
@@ -140,15 +139,32 @@ async function endMode(commit: boolean) {
 }
 
 async function updateLook() {
-  if (!sheet.hasLook || activeMode !== null || !view.isStanding) {
+  const grounded = activeMode === null && (view.isStanding || view.isWalking);
+  if (!grounded && !debugEnabled) {
     view.setLook(null);
+    autonomy.setCursorNear(false);
     return;
   }
   const pointer = await invoke<PointerOffset>("pointer_offset");
-  view.setLook(lookDirection(pointer, innerWidth, innerHeight, lookRadius));
+  const distance = headDistance(pointer, innerWidth, innerHeight);
+  const near = grounded && distance <= lookRadius;
+  autonomy.setCursorNear(near);
+  const direction = near && sheet.hasLook && view.isStanding ? lookDirection(pointer, innerWidth, innerHeight, lookRadius) : null;
+  view.setLook(direction);
+  if (debugEnabled) {
+    const debug: ViewDebug = {
+      distance,
+      direction,
+      radius: lookRadius,
+      scale: settings.values.scale,
+      autonomy: autonomy.snapshot(),
+    };
+    void emitTo(POPUP_WINDOW, VIEW_DEBUG_EVENT, debug);
+  }
 }
 
 canvas.addEventListener("pointerdown", (event) => {
+  autonomy.touch();
   if (event.button !== 0) {
     return;
   }
@@ -170,8 +186,9 @@ canvas.addEventListener("pointercancel", endDrag);
 
 document.addEventListener("contextmenu", (event) => {
   event.preventDefault();
+  autonomy.touch();
   if (activeMode === null) {
-    void openContextMenu(language, sheet.hasLook);
+    void openContextMenu(language, sheet.hasLook, debugEnabled, settings.values.autonomy);
   }
 });
 
@@ -183,9 +200,14 @@ function handleMenuAction(action: MenuAction) {
       return openOverlay("radius");
     case "changeSheet":
       return changeSheet();
+    case "debug":
+      return toggleDebug();
     case "language":
       language = action.language;
       return settings.update({ language: action.language });
+    case "autonomy":
+      autonomy.setLevel(action.level);
+      return settings.update({ autonomy: action.level });
     case "quit":
       return invoke("quit_app");
   }
@@ -205,5 +227,6 @@ await invoke("set_foot_inset", { ratio: sheet.footInsetRatio });
 await invoke("resize_pet", { scale: settings.values.scale });
 await invoke("place_pet", { position: settings.values.position });
 view.start();
+autonomy.start();
 await petWindow.show();
 setInterval(() => void updateLook(), LOOK_INTERVAL_MS);

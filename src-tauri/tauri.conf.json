@@ -25,6 +25,21 @@
         "resizable": false,
         "shadow": false,
         "visible": false
+      },
+      {
+        "label": "popup",
+        "title": "PATE",
+        "url": "popup.html",
+        "width": 240,
+        "height": 160,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "shadow": false,
+        "visible": false,
+        "focus": false
       }
     ],
     "security": {

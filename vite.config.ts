@@ -24,8 +24,7 @@ export default defineConfig(() => ({
     rollupOptions: {
       input: {
         pet: "index.html",
-        overlay: "overlay.html",
-        menu: "menu.html",
+        popup: "popup.html",
       },
     },
   },

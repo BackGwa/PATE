@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "popup",
+  "description": "Shared popup window for the menu, adjustment overlays and debug panel",
+  "windows": ["popup"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-set-ignore-cursor-events",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
+  ]
+}

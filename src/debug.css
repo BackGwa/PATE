@@ -1,0 +1,30 @@
+#debug-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 10px;
+  row-gap: 2px;
+  width: 232px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  transform-origin: left top;
+  pointer-events: none;
+}
+
+#debug-panel dt {
+  color: var(--text-muted);
+}
+
+#debug-panel dd {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

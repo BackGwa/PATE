@@ -11,6 +11,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -29,6 +30,9 @@ pub fn run() {
             pet_window::drag_end,
             pet_window::pointer_offset,
             pet_window::quit_app,
+            pet_window::follow_pet,
+            pet_window::start_walk,
+            pet_window::stop_walk,
             sheet::read_sheet,
             popup::show_popup,
         ])

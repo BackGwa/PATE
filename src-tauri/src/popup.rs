@@ -1,10 +1,13 @@
 use tauri::{Runtime, WebviewWindow};
 
 #[tauri::command]
-pub fn show_popup<R: Runtime>(window: WebviewWindow<R>) -> Result<(), String> {
+pub fn show_popup<R: Runtime>(window: WebviewWindow<R>, focus: bool) -> Result<(), String> {
     disable_transitions(&window);
     window.show().map_err(|error| error.to_string())?;
-    window.set_focus().map_err(|error| error.to_string())
+    if focus {
+        window.set_focus().map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 #[cfg(windows)]

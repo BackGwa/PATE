@@ -1,8 +1,10 @@
 import { Store, load } from "@tauri-apps/plugin-store";
+import { AutonomyLevel } from "./autonomy-level";
 import { Language } from "./i18n";
 
 export const DEFAULT_SCALE = 1;
 export const DEFAULT_LOOK_RADIUS = 360;
+export const DEFAULT_AUTONOMY: AutonomyLevel = "often";
 
 export type Settings = {
   scale: number;
@@ -10,6 +12,7 @@ export type Settings = {
   sheetPath: string | null;
   language: Language | null;
   position: [number, number] | null;
+  autonomy: AutonomyLevel;
 };
 
 const DEFAULTS: Settings = {
@@ -18,6 +21,7 @@ const DEFAULTS: Settings = {
   sheetPath: null,
   language: null,
   position: null,
+  autonomy: DEFAULT_AUTONOMY,
 };
 
 export class SettingsStore {

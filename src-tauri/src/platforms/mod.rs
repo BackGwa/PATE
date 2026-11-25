@@ -20,3 +20,13 @@ pub fn list_platforms(_points_to_physical: f64) -> Vec<PlatformRect> {
 pub fn list_platforms(points_to_physical: f64) -> Vec<PlatformRect> {
     macos::list_platforms(points_to_physical)
 }
+
+#[cfg(windows)]
+pub fn window_title(id: u64) -> Option<String> {
+    windows::window_title(id)
+}
+
+#[cfg(target_os = "macos")]
+pub fn window_title(id: u64) -> Option<String> {
+    macos::window_title(id)
+}

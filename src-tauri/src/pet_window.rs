@@ -4,17 +4,37 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Runtime, State, WebviewWindow};
 
-use crate::motion::{Area, Display, Frame, Motion, MotionEvent, Surroundings};
+use crate::motion::{Area, Display, Facing, Frame, Motion, MotionEvent, MotionSnapshot, SupportSnapshot, Surroundings};
 use crate::platforms;
 
 pub const PET_WINDOW: &str = "main";
+pub const POPUP_WINDOW: &str = "popup";
 const MOTION_EVENT: &str = "pet-motion";
+const DEBUG_EVENT: &str = "pet-debug";
+const DEBUG_INTERVAL: Duration = Duration::from_millis(100);
+const DEBUG_PANEL_GAP: f64 = 4.0;
 const TICK: Duration = Duration::from_millis(16);
 const DISPLAY_REFRESH: Duration = Duration::from_millis(500);
 
 pub struct PetState {
     motion: Mutex<Motion>,
     last_event: Mutex<Option<MotionEvent>>,
+    debug_panel: Mutex<Option<DebugPanel>>,
+}
+
+#[derive(Clone, Copy)]
+struct DebugPanel {
+    width: f64,
+    height: f64,
+    reported_at: Option<Instant>,
+}
+
+#[derive(Serialize, Clone)]
+struct DebugInfo {
+    #[serde(flatten)]
+    motion: MotionSnapshot,
+    title: Option<String>,
+    display_scale: f64,
 }
 
 #[derive(Serialize)]
@@ -35,6 +55,7 @@ pub fn manage<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             height: size.height as f64,
         })),
         last_event: Mutex::new(None),
+        debug_panel: Mutex::new(None),
     });
     Ok(())
 }
@@ -70,8 +91,75 @@ pub fn spawn_ticker<R: Runtime>(app: AppHandle<R>) {
                 apply_frame(&app, motion.frame());
             }
             publish(&app, &state, &motion);
+            follow_with_debug_panel(&app, &state, &motion, &displays, now);
         }
     });
+}
+
+#[tauri::command]
+pub async fn follow_pet(state: State<'_, PetState>, size: Option<(f64, f64)>) -> Result<(), String> {
+    *state.debug_panel.lock().unwrap() = size.map(|(width, height)| DebugPanel {
+        width,
+        height,
+        reported_at: None,
+    });
+    Ok(())
+}
+
+fn follow_with_debug_panel<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &PetState,
+    motion: &Motion,
+    displays: &[Display],
+    now: Instant,
+) {
+    let mut debug_panel = state.debug_panel.lock().unwrap();
+    let Some(panel) = debug_panel.as_mut() else {
+        return;
+    };
+    let Some(popup) = app.get_webview_window(POPUP_WINDOW) else {
+        return;
+    };
+    let frame = motion.frame();
+    let surroundings = Surroundings {
+        displays: displays.to_vec(),
+        platforms: Vec::new(),
+    };
+    let Some(display) = surroundings
+        .display_at(frame.x + frame.width / 2.0, frame.y + frame.height / 2.0)
+        .copied()
+    else {
+        return;
+    };
+    let width = panel.width * display.scale;
+    let height = panel.height * display.scale;
+    let gap = DEBUG_PANEL_GAP * display.scale;
+    let right_side = frame.x + frame.width + gap;
+    let x = if right_side + width <= display.bounds.right {
+        right_side
+    } else {
+        frame.x - gap - width
+    };
+    let y = frame.y.clamp(display.bounds.top, (display.bounds.bottom - height).max(display.bounds.top));
+    let _ = popup.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));
+    if panel.reported_at.is_some_and(|at| now.duration_since(at) < DEBUG_INTERVAL) {
+        return;
+    }
+    panel.reported_at = Some(now);
+    let snapshot = motion.snapshot();
+    let title = match snapshot.support {
+        Some(SupportSnapshot::Window { id }) => platforms::window_title(id),
+        _ => None,
+    };
+    let _ = app.emit_to(
+        POPUP_WINDOW,
+        DEBUG_EVENT,
+        DebugInfo {
+            motion: snapshot,
+            title,
+            display_scale: display.scale,
+        },
+    );
 }
 
 #[tauri::command]
@@ -88,6 +176,7 @@ pub async fn place_pet<R: Runtime>(
     let mut motion = state.motion.lock().unwrap();
     motion.place(position, &surroundings);
     apply_frame(&app, motion.frame());
+    *state.last_event.lock().unwrap() = None;
     publish(&app, &state, &motion);
     Ok(())
 }
@@ -113,6 +202,29 @@ pub async fn resize_pet<R: Runtime>(
 #[tauri::command]
 pub async fn set_foot_inset(state: State<'_, PetState>, ratio: f64) -> Result<(), String> {
     state.motion.lock().unwrap().set_foot_inset_ratio(ratio);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn start_walk<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, PetState>,
+    facing: Facing,
+    distance: f64,
+    leap: bool,
+) -> Result<(), String> {
+    let display_scale = pet_display_scale(&state, &capture_displays(&app));
+    let mut motion = state.motion.lock().unwrap();
+    motion.start_walk(facing, distance, leap, display_scale);
+    publish(&app, &state, &motion);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_walk<R: Runtime>(app: AppHandle<R>, state: State<'_, PetState>) -> Result<(), String> {
+    let mut motion = state.motion.lock().unwrap();
+    motion.stop_walk();
+    publish(&app, &state, &motion);
     Ok(())
 }
 

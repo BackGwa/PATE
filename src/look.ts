@@ -4,6 +4,10 @@ export const DIRECTIONS = 16;
 
 export type PointerOffset = { x: number; y: number };
 
+export function headDistance(pointer: PointerOffset, petWidth: number, petHeight: number): number {
+  return Math.hypot(pointer.x - petWidth * HEAD_X_RATIO, pointer.y - petHeight * HEAD_Y_RATIO);
+}
+
 export function lookDirection(
   pointer: PointerOffset,
   petWidth: number,
@@ -12,7 +16,7 @@ export function lookDirection(
 ): number | null {
   const dx = pointer.x - petWidth * HEAD_X_RATIO;
   const dy = pointer.y - petHeight * HEAD_Y_RATIO;
-  if (Math.hypot(dx, dy) > radius) {
+  if (headDistance(pointer, petWidth, petHeight) > radius) {
     return null;
   }
   const clockwiseFromUp = (Math.atan2(dx, -dy) * 180) / Math.PI;
