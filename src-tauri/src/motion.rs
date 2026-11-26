@@ -183,8 +183,16 @@ impl TrackedPlatform {
             .max_by(|a, b| overlap(*a, span_left, span_right).total_cmp(&overlap(*b, span_left, span_right)))
     }
 
-    fn was_beside(&self, span_left: f64, span_right: f64) -> bool {
-        self.previous_left >= span_right || self.previous_right <= span_left
+    fn push_offset(&self, span_left: f64, span_right: f64) -> Option<f64> {
+        if self.rect.left >= span_right || self.rect.right <= span_left {
+            None
+        } else if self.previous_left >= span_right {
+            Some(self.rect.left - span_right)
+        } else if self.previous_right <= span_left {
+            Some(self.rect.right - span_left)
+        } else {
+            None
+        }
     }
 }
 
@@ -639,10 +647,9 @@ impl Motion {
             };
             return;
         }
-        if let Some(contact) = self.pushing_window(id, previous_foot) {
-            self.frame.y = contact.top - foot_offset;
-            self.phase = Phase::Standing(contact.support);
-            return;
+        self.frame.x += self.push_offset(id, previous_foot);
+        if let Some((screen_left, screen_right)) = surroundings.horizontal_extent() {
+            self.frame.x = self.frame.x.clamp(screen_left, screen_right - self.frame.width);
         }
         let (span_left, span_right) = self.foot_span(self.frame.x);
         let visible = platform.visible_under(span_left, span_right).is_some();
@@ -655,19 +662,13 @@ impl Motion {
         self.phase = Phase::Standing(Support::Window { id, vy: platform.vy });
     }
 
-    fn pushing_window(&self, support_id: u64, foot: f64) -> Option<Contact> {
+    fn push_offset(&self, support_id: u64, foot: f64) -> f64 {
         let (span_left, span_right) = self.foot_span(self.frame.x);
         self.platforms
             .iter()
-            .filter(|platform| {
-                platform.rect.id != support_id
-                    && platform.rect.top < foot
-                    && platform.rect.bottom > foot
-                    && platform.was_beside(span_left, span_right)
-                    && platform.visible_under(span_left, span_right).is_some()
-            })
-            .min_by(|a, b| a.rect.top.total_cmp(&b.rect.top))
-            .map(window_contact_of)
+            .filter(|platform| platform.rect.id != support_id && platform.rect.top < foot && platform.rect.bottom > foot)
+            .find_map(|platform| platform.push_offset(span_left, span_right))
+            .unwrap_or(0.0)
     }
 
     fn record_impact(&mut self, side: ImpactSide, speed: f64, display_scale: f64) {

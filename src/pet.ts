@@ -15,6 +15,7 @@ import {
   WALK_RIGHT,
   frameAt,
   idleCycle,
+  SquashCurve,
   squashAt,
 } from "./animations";
 import { DIRECTIONS, stepToward } from "./look";
@@ -40,6 +41,7 @@ type Squash = {
   startedAt: number;
   durationMs: number;
   strength: number;
+  curve: SquashCurve;
 };
 
 type Gaze = number | "idle";
@@ -131,6 +133,7 @@ export class PetView {
       startedAt: performance.now(),
       durationMs: IMPACT_SQUASH.durationMs,
       strength: IMPACT_SQUASH.strength * impact.strength,
+      curve: IMPACT_SQUASH.curve,
     };
   }
 
@@ -160,8 +163,8 @@ export class PetView {
 
   private draw(now: number) {
     const pose = this.currentPose(now);
-    const { side, startedAt, durationMs, strength } = this.squash;
-    const squash = squashAt(now - startedAt, durationMs, strength);
+    const { side, startedAt, durationMs, strength, curve } = this.squash;
+    const squash = squashAt(now - startedAt, durationMs, strength, curve);
     const width = Math.round(this.canvas.clientWidth * devicePixelRatio);
     const height = Math.round(this.canvas.clientHeight * devicePixelRatio);
     const morphing = pose.progress < 1 && pose.from !== pose.to;
