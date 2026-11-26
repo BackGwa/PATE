@@ -9,6 +9,7 @@ pub struct PlatformRect {
     pub left: f64,
     pub top: f64,
     pub right: f64,
+    pub bottom: f64,
 }
 
 #[cfg(windows)]

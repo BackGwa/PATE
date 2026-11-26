@@ -17,7 +17,7 @@ import {
   OverlayPreview,
 } from "./overlay-protocol";
 import { DEBUG_TOGGLE_EVENT, DebugToggle, POPUP_WINDOW, VIEW_DEBUG_EVENT, ViewDebug } from "./popup-protocol";
-import { MotionState, PetView } from "./pet";
+import { Impact, MotionState, PetView } from "./pet";
 import { SettingsStore } from "./settings";
 import { Sheet, SheetSizeError, loadDefaultSheet, loadSheetFile } from "./sheet";
 
@@ -219,6 +219,7 @@ await listen<MotionState>("pet-motion", (event) => {
     void settings.update({ position: [event.payload.x, event.payload.y] });
   }
 });
+await listen<Impact>("pet-impact", (event) => view.squashAgainst(event.payload));
 await listen<OverlayPreview>(OVERLAY_PREVIEW_EVENT, (event) => void previewMode(event.payload.value));
 await listen<OverlayEnd>(OVERLAY_END_EVENT, (event) => void endMode(event.payload.commit));
 await listen<MenuAction>(MENU_ACTION_EVENT, (event) => void handleMenuAction(event.payload));

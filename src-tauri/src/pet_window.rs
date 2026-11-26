@@ -11,6 +11,7 @@ pub const PET_WINDOW: &str = "main";
 pub const POPUP_WINDOW: &str = "popup";
 const MOTION_EVENT: &str = "pet-motion";
 const DEBUG_EVENT: &str = "pet-debug";
+const IMPACT_EVENT: &str = "pet-impact";
 const DEBUG_INTERVAL: Duration = Duration::from_millis(100);
 const DEBUG_PANEL_GAP: f64 = 4.0;
 const TICK: Duration = Duration::from_millis(16);
@@ -91,6 +92,9 @@ pub fn spawn_ticker<R: Runtime>(app: AppHandle<R>) {
                 apply_frame(&app, motion.frame());
             }
             publish(&app, &state, &motion);
+            if let Some(impact) = motion.take_impact() {
+                let _ = app.emit_to(PET_WINDOW, IMPACT_EVENT, impact);
+            }
             follow_with_debug_panel(&app, &state, &motion, &displays, now);
         }
     });

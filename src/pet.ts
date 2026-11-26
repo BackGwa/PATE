@@ -3,7 +3,9 @@ import {
   Clip,
   FALL,
   IDLE_SPRITE,
+  IMPACT_SQUASH,
   LAND,
+  LANDING_SQUASH,
   LOOK_FIRST_SPRITE,
   LOOK_STEP_MS,
   MORPH_MS,
@@ -27,6 +29,18 @@ export type MotionState =
   | { state: "flying"; facing: Facing }
   | { state: "walking"; facing: Facing }
   | { state: "standing"; x: number; y: number };
+
+export type Impact = {
+  side: "left" | "right" | "top";
+  strength: number;
+};
+
+type Squash = {
+  side: Impact["side"] | "bottom";
+  startedAt: number;
+  durationMs: number;
+  strength: number;
+};
 
 type Gaze = number | "idle";
 
@@ -54,7 +68,7 @@ export class PetView {
   private look: number | null = null;
   private gaze: Gaze = "idle";
   private gazeSegment: GazeSegment | null = null;
-  private squashStartedAt = Number.NEGATIVE_INFINITY;
+  private squash: Squash = { side: "bottom", startedAt: Number.NEGATIVE_INFINITY, ...LANDING_SQUASH };
   private idle: Clip = idleCycle();
   private previousIdleSprite = IDLE_SPRITE;
   private clip: Clip = this.idle;
@@ -106,9 +120,18 @@ export class PetView {
       this.action = null;
     }
     if (this.landing || (isAirborne(motion) && !wasAirborne)) {
-      this.squashStartedAt = performance.now();
+      this.squash = { side: "bottom", startedAt: performance.now(), ...LANDING_SQUASH };
     }
     this.motion = motion;
+  }
+
+  squashAgainst(impact: Impact) {
+    this.squash = {
+      side: impact.side,
+      startedAt: performance.now(),
+      durationMs: IMPACT_SQUASH.durationMs,
+      strength: IMPACT_SQUASH.strength * impact.strength,
+    };
   }
 
   setLook(direction: number | null) {
@@ -137,21 +160,24 @@ export class PetView {
 
   private draw(now: number) {
     const pose = this.currentPose(now);
-    const squash = squashAt(now - this.squashStartedAt);
+    const { side, startedAt, durationMs, strength } = this.squash;
+    const squash = squashAt(now - startedAt, durationMs, strength);
     const width = Math.round(this.canvas.clientWidth * devicePixelRatio);
     const height = Math.round(this.canvas.clientHeight * devicePixelRatio);
     const morphing = pose.progress < 1 && pose.from !== pose.to;
-    const key = [pose.to, morphing ? pose.from : "", morphing ? pose.progress.toFixed(3) : "", squash, width, height].join(":");
+    const key = [pose.to, morphing ? pose.from : "", morphing ? pose.progress.toFixed(3) : "", side, squash, width, height].join(":");
     if (key === this.drawnKey) {
       return;
     }
     this.drawnKey = key;
     this.canvas.width = width;
     this.canvas.height = height;
-    const scaleX = 1 + squash;
-    const scaleY = 1 - squash;
-    const footY = height * (1 - this.sheet.footInsetRatio);
-    this.context.setTransform(scaleX, 0, 0, scaleY, (width / 2) * (1 - scaleX), footY * (1 - scaleY));
+    const horizontal = side === "left" || side === "right";
+    const scaleX = horizontal ? 1 - squash : 1 + squash;
+    const scaleY = horizontal ? 1 + squash : 1 - squash;
+    const anchorX = side === "left" ? 0 : side === "right" ? width : width / 2;
+    const anchorY = side === "top" ? 0 : side === "bottom" ? height * (1 - this.sheet.footInsetRatio) : height / 2;
+    this.context.setTransform(scaleX, 0, 0, scaleY, anchorX * (1 - scaleX), anchorY * (1 - scaleY));
     this.context.imageSmoothingQuality = "high";
     this.context.clearRect(0, 0, width, height);
     const morphed = morphing ? this.morph.render(pose.from, pose.to, smooth(pose.progress)) : null;

@@ -62,6 +62,7 @@ unsafe fn platform_of(hwnd: HWND) -> Option<PlatformRect> {
             left: bounds.left as f64,
             top: bounds.top as f64,
             right: bounds.right as f64,
+            bottom: bounds.bottom as f64,
         })
     }
 }

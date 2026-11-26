@@ -24,6 +24,8 @@ const WINDOW_HIT_MIN_SPEED: f64 = 120.0;
 const WALK_SPEED: f64 = 80.0;
 const LEAP_SPEED_X: f64 = 240.0;
 const LEAP_SPEED_Y: f64 = 700.0;
+const IMPACT_MIN_SPEED: f64 = 300.0;
+const IMPACT_FULL_SPEED: f64 = 2400.0;
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -161,13 +163,43 @@ enum Support {
     Window { id: u64, vy: f64 },
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct TrackedPlatform {
     rect: PlatformRect,
     previous_left: f64,
+    previous_right: f64,
     previous_top: f64,
     vx: f64,
     vy: f64,
+    visible_top: Vec<(f64, f64)>,
+}
+
+impl TrackedPlatform {
+    fn visible_under(&self, span_left: f64, span_right: f64) -> Option<(f64, f64)> {
+        self.visible_top
+            .iter()
+            .copied()
+            .filter(|(left, right)| *left < span_right && *right > span_left)
+            .max_by(|a, b| overlap(*a, span_left, span_right).total_cmp(&overlap(*b, span_left, span_right)))
+    }
+
+    fn was_beside(&self, span_left: f64, span_right: f64) -> bool {
+        self.previous_left >= span_right || self.previous_right <= span_left
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ImpactSide {
+    Left,
+    Right,
+    Top,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct Impact {
+    pub side: ImpactSide,
+    pub strength: f64,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -208,6 +240,7 @@ pub struct Motion {
     last_facing: Facing,
     platforms: Vec<TrackedPlatform>,
     walk: Option<Walk>,
+    impact: Option<Impact>,
 }
 
 impl Motion {
@@ -219,11 +252,16 @@ impl Motion {
             last_facing: Facing::Right,
             platforms: Vec::new(),
             walk: None,
+            impact: None,
         }
     }
 
     pub fn frame(&self) -> Frame {
         self.frame
+    }
+
+    pub fn take_impact(&mut self) -> Option<Impact> {
+        self.impact.take()
     }
 
     pub fn needs_platforms(&self) -> bool {
@@ -421,15 +459,15 @@ impl Motion {
         let Some(mut walk) = self.walk else {
             return;
         };
-        let Some((surface_left, surface_right, leapable)) = self.walking_surface(surroundings) else {
+        let Some((surface_left, surface_right, leap_left, leap_right)) = self.walking_surface(surroundings) else {
             self.walk = None;
             return;
         };
         let (span_left, span_right) = self.foot_span(self.frame.x);
         let step = (walk.speed * seconds).min(walk.remaining);
-        let reaches_edge = match walk.facing {
-            Facing::Right => span_right + step > surface_right,
-            Facing::Left => span_left - step < surface_left,
+        let (reaches_edge, leapable) = match walk.facing {
+            Facing::Right => (span_right + step > surface_right, leap_right),
+            Facing::Left => (span_left - step < surface_left, leap_left),
         };
         walk.remaining -= step;
         if !reaches_edge {
@@ -445,20 +483,22 @@ impl Motion {
         self.walk = (walk.remaining > 0.0).then_some(walk);
     }
 
-    fn walking_surface(&self, surroundings: &Surroundings) -> Option<(f64, f64, bool)> {
+    fn walking_surface(&self, surroundings: &Surroundings) -> Option<(f64, f64, bool, bool)> {
         let (screen_left, screen_right) = surroundings.horizontal_extent()?;
         match self.phase {
             Phase::Standing(Support::Floor) => {
                 let display = surroundings.display_at(self.frame.x + self.frame.width / 2.0, self.frame.y + self.foot_offset())?;
-                Some((display.work_area.left, display.work_area.right, false))
+                Some((display.work_area.left, display.work_area.right, false, false))
             }
             Phase::Standing(Support::Window { id, .. }) => {
                 let platform = self.platforms.iter().find(|tracked| tracked.rect.id == id)?;
-                let leapable = platform.rect.left > screen_left && platform.rect.right < screen_right;
+                let (span_left, span_right) = self.foot_span(self.frame.x);
+                let (left, right) = platform.visible_under(span_left, span_right)?;
                 Some((
-                    platform.rect.left.max(screen_left),
-                    platform.rect.right.min(screen_right),
-                    leapable,
+                    left.max(screen_left),
+                    right.min(screen_right),
+                    left == platform.rect.left && left > screen_left,
+                    right == platform.rect.right && right < screen_right,
                 ))
             }
             _ => None,
@@ -533,16 +573,19 @@ impl Motion {
         if let Some((wall_left, wall_right)) = surroundings.horizontal_extent() {
             if x < wall_left {
                 x = wall_left;
+                self.record_impact(ImpactSide::Left, vx.abs(), display.scale);
                 vx = vx.abs() * RESTITUTION;
                 flying = flying.map(|_| Facing::Right);
             } else if x + self.frame.width > wall_right {
                 x = wall_right - self.frame.width;
+                self.record_impact(ImpactSide::Right, vx.abs(), display.scale);
                 vx = -vx.abs() * RESTITUTION;
                 flying = flying.map(|_| Facing::Left);
             }
         }
         if y < display.bounds.top {
             y = display.bounds.top;
+            self.record_impact(ImpactSide::Top, vy.abs(), display.scale);
             vy = vy.abs() * RESTITUTION;
         }
         if let Some(facing) = flying {
@@ -568,7 +611,7 @@ impl Motion {
     }
 
     fn ride_window(&mut self, id: u64, vy: f64, seconds: f64, surroundings: &Surroundings) {
-        let Some(platform) = self.platforms.iter().find(|tracked| tracked.rect.id == id).copied() else {
+        let Some(platform) = self.platforms.iter().find(|tracked| tracked.rect.id == id).cloned() else {
             self.phase = Phase::Airborne { vx: 0.0, vy, flying: None };
             return;
         };
@@ -578,10 +621,32 @@ impl Motion {
             .map_or(1.0, |display| display.scale);
         let vy = vy + GRAVITY * scale * seconds;
         self.frame.x += platform.rect.left - platform.previous_left;
-        let foot = self.frame.y + foot_offset + vy * seconds;
+        let previous_foot = self.frame.y + foot_offset;
+        let foot = previous_foot + vy * seconds;
+        let rising = self
+            .window_contact(previous_foot - SUPPORT_SNAP * scale, platform.rect.top, self.frame.x, Some(id))
+            .filter(|contact| contact.top < platform.rect.top);
+        if let Some(contact) = rising {
+            self.frame.y = contact.top - foot_offset;
+            self.phase = if contact.vy < -WINDOW_HIT_MIN_SPEED * scale {
+                Phase::Airborne {
+                    vx: platform.vx,
+                    vy: contact.vy - (vy - contact.vy).max(0.0) * RESTITUTION,
+                    flying: None,
+                }
+            } else {
+                Phase::Standing(contact.support)
+            };
+            return;
+        }
+        if let Some(contact) = self.pushing_window(id, previous_foot) {
+            self.frame.y = contact.top - foot_offset;
+            self.phase = Phase::Standing(contact.support);
+            return;
+        }
         let (span_left, span_right) = self.foot_span(self.frame.x);
-        let over_window = platform.rect.left < span_right && platform.rect.right > span_left;
-        if !over_window || foot < platform.rect.top - SUPPORT_SNAP * scale {
+        let visible = platform.visible_under(span_left, span_right).is_some();
+        if !visible || foot < platform.rect.top - SUPPORT_SNAP * scale {
             self.frame.y = foot - foot_offset;
             self.phase = Phase::Airborne { vx: platform.vx, vy, flying: None };
             return;
@@ -590,27 +655,74 @@ impl Motion {
         self.phase = Phase::Standing(Support::Window { id, vy: platform.vy });
     }
 
+    fn pushing_window(&self, support_id: u64, foot: f64) -> Option<Contact> {
+        let (span_left, span_right) = self.foot_span(self.frame.x);
+        self.platforms
+            .iter()
+            .filter(|platform| {
+                platform.rect.id != support_id
+                    && platform.rect.top < foot
+                    && platform.rect.bottom > foot
+                    && platform.was_beside(span_left, span_right)
+                    && platform.visible_under(span_left, span_right).is_some()
+            })
+            .min_by(|a, b| a.rect.top.total_cmp(&b.rect.top))
+            .map(window_contact_of)
+    }
+
+    fn record_impact(&mut self, side: ImpactSide, speed: f64, display_scale: f64) {
+        if speed < IMPACT_MIN_SPEED * display_scale {
+            return;
+        }
+        self.impact = Some(Impact {
+            side,
+            strength: (speed / display_scale / IMPACT_FULL_SPEED).min(1.0),
+        });
+    }
+
     fn track_platforms(&mut self, seconds: f64, platforms: &[PlatformRect]) {
         let blend = 1.0 - (-seconds / WINDOW_VELOCITY_SMOOTHING_SECONDS).exp();
         self.platforms = platforms
             .iter()
-            .map(|rect| match self.platforms.iter().find(|tracked| tracked.rect.id == rect.id) {
-                Some(previous) if seconds > 0.0 => TrackedPlatform {
-                    rect: *rect,
-                    previous_left: previous.rect.left,
-                    previous_top: previous.rect.top,
-                    vx: previous.vx + ((rect.left - previous.rect.left) / seconds - previous.vx) * blend,
-                    vy: previous.vy + ((rect.top - previous.rect.top) / seconds - previous.vy) * blend,
-                },
-                _ => TrackedPlatform {
-                    rect: *rect,
-                    previous_left: rect.left,
-                    previous_top: rect.top,
-                    vx: 0.0,
-                    vy: 0.0,
-                },
+            .enumerate()
+            .map(|(index, rect)| {
+                let visible_top = visible_top(rect, &platforms[..index]);
+                match self.platforms.iter().find(|tracked| tracked.rect.id == rect.id) {
+                    Some(previous) if seconds > 0.0 => TrackedPlatform {
+                        rect: *rect,
+                        previous_left: previous.rect.left,
+                        previous_right: previous.rect.right,
+                        previous_top: previous.rect.top,
+                        vx: previous.vx + ((rect.left - previous.rect.left) / seconds - previous.vx) * blend,
+                        vy: previous.vy + ((rect.top - previous.rect.top) / seconds - previous.vy) * blend,
+                        visible_top,
+                    },
+                    _ => TrackedPlatform {
+                        rect: *rect,
+                        previous_left: rect.left,
+                        previous_right: rect.right,
+                        previous_top: rect.top,
+                        vx: 0.0,
+                        vy: 0.0,
+                        visible_top,
+                    },
+                }
             })
             .collect();
+    }
+
+    fn window_contact(&self, previous_foot: f64, foot: f64, x: f64, except: Option<u64>) -> Option<Contact> {
+        let (span_left, span_right) = self.foot_span(x);
+        self.platforms
+            .iter()
+            .filter(|platform| {
+                Some(platform.rect.id) != except
+                    && platform.previous_top >= previous_foot
+                    && platform.rect.top <= foot
+                    && platform.visible_under(span_left, span_right).is_some()
+            })
+            .min_by(|a, b| a.rect.top.total_cmp(&b.rect.top))
+            .map(window_contact_of)
     }
 
     fn find_support(
@@ -621,24 +733,7 @@ impl Motion {
         surroundings: &Surroundings,
     ) -> Option<Contact> {
         let (span_left, span_right) = self.foot_span(x);
-        let window_support = self
-            .platforms
-            .iter()
-            .filter(|platform| {
-                platform.previous_top >= previous_foot
-                    && platform.rect.top <= foot
-                    && platform.rect.left < span_right
-                    && platform.rect.right > span_left
-            })
-            .min_by(|a, b| a.rect.top.total_cmp(&b.rect.top))
-            .map(|platform| Contact {
-                support: Support::Window {
-                    id: platform.rect.id,
-                    vy: platform.vy,
-                },
-                top: platform.rect.top,
-                vy: platform.vy,
-            });
+        let window_support = self.window_contact(previous_foot, foot, x, None);
         let floor_support = surroundings
             .display_at((span_left + span_right) / 2.0, foot)
             .map(|display| display.work_area.bottom)
@@ -664,6 +759,34 @@ impl Motion {
     fn foot_offset(&self) -> f64 {
         self.frame.height * (1.0 - self.foot_inset_ratio)
     }
+}
+
+fn window_contact_of(platform: &TrackedPlatform) -> Contact {
+    Contact {
+        support: Support::Window {
+            id: platform.rect.id,
+            vy: platform.vy,
+        },
+        top: platform.rect.top,
+        vy: platform.vy,
+    }
+}
+
+fn visible_top(rect: &PlatformRect, front: &[PlatformRect]) -> Vec<(f64, f64)> {
+    front
+        .iter()
+        .filter(|cover| cover.top < rect.top && cover.bottom > rect.top)
+        .fold(vec![(rect.left, rect.right)], |visible, cover| {
+            visible
+                .into_iter()
+                .flat_map(|(left, right)| [(left, right.min(cover.left)), (left.max(cover.right), right)])
+                .filter(|(left, right)| right > left)
+                .collect()
+        })
+}
+
+fn overlap((left, right): (f64, f64), span_left: f64, span_right: f64) -> f64 {
+    right.min(span_right) - left.max(span_left)
 }
 
 fn falling() -> Phase {

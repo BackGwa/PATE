@@ -2374,7 +2374,7 @@ dependencies = [
 
 [[package]]
 name = "pate"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "core-foundation",
  "core-graphics 0.24.0",

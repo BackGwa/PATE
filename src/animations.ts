@@ -79,15 +79,15 @@ export const BLINK_PAIRS: [number, number][] = [
   [EYES_CLOSED, EYES_HALF],
   [EYES_HALF, EYES_OPEN],
 ];
-export const SQUASH_MS = 150;
-const SQUASH_STRENGTH = 0.09;
+export const LANDING_SQUASH = { durationMs: 150, strength: 0.09 };
+export const IMPACT_SQUASH = { durationMs: 240, strength: 0.6 };
 
-export function squashAt(elapsedMs: number): number {
-  if (elapsedMs < 0 || elapsedMs >= SQUASH_MS) {
+export function squashAt(elapsedMs: number, durationMs: number, strength: number): number {
+  if (elapsedMs < 0 || elapsedMs >= durationMs) {
     return 0;
   }
-  const progress = elapsedMs / SQUASH_MS;
-  return Math.sin(progress * Math.PI) * (1 - progress) * SQUASH_STRENGTH;
+  const progress = elapsedMs / durationMs;
+  return Math.sin(progress * Math.PI) * (1 - progress) * strength;
 }
 
 export type ClipFrame = {

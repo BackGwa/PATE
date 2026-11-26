@@ -56,7 +56,8 @@ fn platform_of(info: &WindowInfo, own_process_id: f64, points_to_physical: f64) 
     let left = number(&bounds, CFString::from_static_string("X").as_concrete_TypeRef())?;
     let top = number(&bounds, CFString::from_static_string("Y").as_concrete_TypeRef())?;
     let width = number(&bounds, CFString::from_static_string("Width").as_concrete_TypeRef())?;
-    if width <= 0.0 {
+    let height = number(&bounds, CFString::from_static_string("Height").as_concrete_TypeRef())?;
+    if width <= 0.0 || height <= 0.0 {
         return None;
     }
     Some(PlatformRect {
@@ -64,6 +65,7 @@ fn platform_of(info: &WindowInfo, own_process_id: f64, points_to_physical: f64) 
         left: left * points_to_physical,
         top: top * points_to_physical,
         right: (left + width) * points_to_physical,
+        bottom: (top + height) * points_to_physical,
     })
 }
 
